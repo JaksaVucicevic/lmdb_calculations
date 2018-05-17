@@ -15,9 +15,11 @@ if len(sys.argv)<2:
 
 input_json = sys.argv[1]
 try:
-  input_dict = json.loads(input_json[1:-1].replace("\\\"",'\"'))
+  input_json_str = str(input_json)[1:-1].replace("\\\"",'\"')
+  input_dict = json.loads(input_json_str)
 except:
-  print "ERROR: unparseable input" 
+  print "ERROR: unparseable input\n\n"
+  print "input_json_str:",input_json_str  
   quit() 
 
 try:
