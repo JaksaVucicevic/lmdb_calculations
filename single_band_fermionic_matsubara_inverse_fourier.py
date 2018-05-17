@@ -13,9 +13,9 @@ if len(sys.argv)<2:
   print "ERROR: Expected arguments."
   quit()
 
-input_json = sys_argv[1]
+input_json = sys.argv[1]
 try:
-  input_dict = json.loads(input_json[1:-1].replace("'",'"'))
+  input_dict = json.loads(input_json[1:-1].replace("\\\"",'\"'))
 except:
   print "ERROR: unparseable input" 
   quit() 
