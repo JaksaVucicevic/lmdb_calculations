@@ -1,6 +1,7 @@
 try:
   from pytriqs.archive import *
-  from pytriqs.gf.local import GfImFreq
+  from pytriqs.gf.local import *
+  import math
   import os.path
   import numpy
   import json
@@ -15,7 +16,8 @@ if len(sys.argv)<2:
 
 input_json = sys.argv[1]
 try:
-  input_json_str = str(input_json)[1:-1].replace("\\\"",'\"')
+  print "raw input_json:",input_json
+  input_json_str = str(input_json).replace("\\\"",'\"')
   input_dict = json.loads(input_json_str)
 except:
   print "ERROR: unparseable input\n\n"
@@ -54,32 +56,54 @@ try:
 except:
   print "ERROR: input does not specify quantity"
   quit()
-    
-try:
-  Q_k_iw = A['lmdb'][Q+'_k_iw']
+   
+try: 
+  spatial_argument = input_dict['spatial_argument']    
 except:
-  print "ERROR: HDF5 archive does not contain the specified quantity",Q+'_k_iw'
+  print "ERROR: input does not specify spatial_argument"
+  quit()
+
+try: 
+  starting_iw = input_dict['starting_iw']
+except:
+  print "ERROR: input does not specify starting_iw"
+  quit()
+
+try: 
+  starting_iw = float(starting_iw)
+except:
+  print "ERROR: starting_iw cannot be converted to float"
+  quit()
+
+
+Q_sa_iw_name = Q+'_'+spatial_argument+'_iw'
+Q_sa_tau_name = Q+'_'+spatial_argument+'_tau'
+
+try:
+  Q_sa_iw = A['lmdb'][Q_sa_iw_name]
+except:
+  print "ERROR: HDF5 archive does not contain the specified quantity",Q_sa_iw_name
   quit()
   
 beta = 4.0/T #!!!!!!!!
-nk,nk,niws = numpy.shape(Q_k_iw)
+nk,nk,niws = numpy.shape(Q_sa_iw)
 assert niws % 2 ==0, "ERROR: must be fermionic Green's function with both negative and postivie freqs"
 n_iw = niws/2
 ntau = n_iw*3+1
 
-Q_k_tau = {}
-Q_k_tau['data'] = numpy.zeros((nk,nk,ntau),dtype=numpy.complex_)
-Q_k_tau['mesh'] = [ 
-    numpy.linspace(0.0,2*numpy.pi,nk,endpoint=False),
-    numpy.linspace(0.0,2*numpy.pi,nk,endpoint=False),
-    numpy.linspace(0,beta,ntau,endpoint=True)
-]
-
-Q_F_k = {}
-Q_F_k['data'] = numpy.zeros((nk,nk),dtype=numpy.complex_)
-Q_F_k['mesh'] = [ 
-    numpy.linspace(0.0,2*numpy.pi,nk,endpoint=False),
-    numpy.linspace(0.0,2*numpy.pi,nk,endpoint=False)
+Q_sa_tau = {}
+Q_sa_tau['data'] = numpy.zeros((nk,nk,ntau),dtype=numpy.complex_)
+if spatial_argument=='k':
+  sa_values = numpy.linspace(0.0,2*numpy.pi,nk,endpoint=False)
+elif spatial_argument=='r':
+  sa_values = range(nk)
+else:
+  print "unrecognized spatial argument:", spatial_argument
+  quit()
+Q_sa_tau['mesh'] = [ 
+  sa_values,
+  sa_values,
+  numpy.linspace(0,beta,ntau,endpoint=True)
 ]
 
 for kxi in range(nk):
@@ -87,24 +111,26 @@ for kxi in range(nk):
         qiw = GfImFreq(indices = [0], beta = beta, n_points = n_iw, statistic='Fermion')        
         qtau = GfImTime(indices = [0], beta = beta, n_points = ntau, statistic='Fermion') 
 
-        qiw.data[:,0,0] = Q_k_iw[kxi,kyi,:]
+        qiw.data[:,0,0] = Q_sa_iw[kxi,kyi,:]
         Nc = 1
         known_coeff = TailGf(Nc,Nc,1,-1)
         known_coeff[-1] = numpy.zeros((Nc,Nc))
         nmax = qiw.mesh.last_index()
-        starting_iw=14.0 
         max_order=5
         overwrite_tail=False
         nmin = int(((starting_iw * beta)/math.pi-1.0)/2.0) 
         nmin = max(nmin,1)
         qiw.fit_tail(known_coeff,max_order, nmin,nmax, overwrite_tail)
-       
+        tail0 = qiw.tail[0][0,0]  
+        qiw[0,0] -= tail0
+        qiw.fit_tail(known_coeff,max_order, nmin,nmax, overwrite_tail)
         qtau << InverseFourier(qiw)  
-        Q_k_tau['data'][kxi,kyi,:] = qtau.data[:,0,0]
-        Q_F_k['data'][kxi,kyi] =  - (beta/numpy.pi) * qtau.data[ntau/2,0,0].real
+        Q_sa_tau['data'][kxi,kyi,:] = qtau.data[:,0,0]
 
-A[Q+'_k_tau'] = Q_k_tau
-A[Q+'_F_k'] = Q_F_k
+
+lmdb = A['lmdb']
+lmdb[Q_sa_tau_name] = Q_sa_tau
+A['lmdb'] = lmdb
 del A
 
 print "SUCCESS!!"
