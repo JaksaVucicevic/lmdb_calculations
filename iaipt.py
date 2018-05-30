@@ -8,10 +8,13 @@ try:
   numpy.warnings.filterwarnings('ignore')
   import json
   import sys
-  import iaipt_launcher from smart_scripts
+  print "about to import smart_scripts...",
+  sys.path.insert(0,'/home/jaksa/TRIQS/source/smart_scripts')
+  from smart_scripts import *
+  print "done"
 except:
   print "ERROR: not all requirements met."
-  quit()
+  raise
 
 if len(sys.argv)<2:
   print "ERROR: Expected arguments."
@@ -35,20 +38,15 @@ for q in ['filename','hamiltonian_terms','hamiltonian_params','model_id','params
     print "ERROR: ",q," not found in input."
     quit()
 try:
+  filename = str(filename)
   nk = int(nk)
+  starting_iw = float(starting_iw)
+  max_its = int(max_its)
+  min_its = int(min_its)
+  accr = float(accr)
+  initial_mu = float(initial_mu)
 except:
   print 'nk cannot be converted to integer'
-
-try: 
-  A = HDFArchive(str(filename),'a')     
-except:
-  print "ERROR: HDF5 archive corrupted, or library problem"
-  quit()
-
-try: 
-  lmdb = A['lmdb']
-except:
-  lmdb = {}
 
 #################################################################3
 def evaluate_term_coefficient(coeff, params):    
@@ -70,9 +68,6 @@ def evaluate_term_coefficient(coeff, params):
     quit()       
   assert not ((len(vrs)>2) and has_j), "Terms with complex coefficients can only have one variable, sorry. If additional constants are present, the code will give incorrect results!"
   return str(val)+("j" if has_j else "")
-
-for param in hamiltonian_params:
-  lmdb[param] = float(evaluate_term_coefficient(param, params))
 
 terms = [ term for term in hamiltonian_terms if len(term[1])==2 ]
 
@@ -106,41 +101,38 @@ for term in terms:
 ks = numpy.linspace(0,2.0*numpy.pi,nk, endpoint=False)
 ss = ['up','dn']
 
-def get_H0k(mu):
-  if nfields==1:
-    H0k = numpy.zeros(( nk, nk ), dtype=numpy.complex_)
-  else:
-    H0k = numpy.zeros(( nfields, nfields, nk, nk ), dtype=numpy.complex_)
+def fill_H0k(mu, terms):
+  H0k = numpy.zeros(( nk, nk, nfields, nfields ), dtype=numpy.complex_)
   params_copy = params.copy()
   params_copy['mu'] = mu
   for coeff, [[co1,f1,s,_],[co2,f2,s,_]] in terms:
     if s=='dn': continue
     t = complex(evaluate_term_coefficient(coeff, params_copy))  
     r = numpy.array(co2)-numpy.array(co1)
-    if nfields==1: h0k = H0k[:,:]
-    else: 
-      a = field_ids.index(f1)
-      b = field_ids.index(f2)
-      h0k = H0k[a,b,:,:]
+    a = field_ids.index(f1)
+    b = field_ids.index(f2)
     for kxi, kx in enumerate(ks):
       for kyi, ky in enumerate(ks):
         if r[0]==0 and r[1]==0: val = t
         else: val = t*numpy.exp(1j*numpy.dot([kx,ky],r))
-        h0k[kxi, kyi] += val
+        H0k[kxi, kyi, a, b] += val
+  return H0k
+ 
+get_H0k = partial(fill_H0k, terms=terms)
 
 Us = {}
 terms = [ term for term in hamiltonian_terms if len(term[1])==4 ]
 for term in terms:  
-  assert len(set([t[1] for t in term[1]))==1, 'no interorbital interactions allowed!!'
+  assert len(set([t[1] for t in term[1]]))==1, 'no interorbital interactions allowed!!'
   for (ti,t),flavor,dagger in zip(enumerate(term[1]),['up','dn','dn','up'],[True,True,False,False]):
     assert (t[2]==flavor) and (t[3]==dagger), 'interaction is not of required type!!'
-  co = term[1][0]
+  co = term[1][0][0]
   for t in term[1][1:]:
     assert t[0]==co, 'interaction must be local!!'
   field_id = term[1][0][1]  
   coef = float(evaluate_term_coefficient(term[0], params))
-  if field_id in Us.keys(): Us[field_id]+=coef
-  else: Us[field_id]=coef
+  if str(field_id) in Us.keys(): Us[str(field_id)]+=coef
+  else: Us[str(field_id)]=coef
 
 assert 'n' in params.keys(), "total n must be specified for this calculation"
 assert 'T' in params.keys(), "T must be specified for this calculation"
@@ -148,15 +140,16 @@ n = float(evaluate_term_coefficient(params['n'], params))
 T = float(evaluate_term_coefficient(params['T'], params))
 
 for sol in [ "metal", "insulator" ]:
-  globals()["dt_"+sol] , globals()["convergers_"+sol]  = ipt_dw_mf_launcher( 
-    field_ids,
+  globals()["dt_"+sol] , globals()["convergers_"+sol]  = iaipt_launcher( 
+    [str(fid) for fid in field_ids],
     get_H0k,
-    Us
+    Us,
     n, 
     T, 
     starting_iw,
     ks,
-    sol #this is initial guess
+    sol, #this is initial guess
+    initial_mu,
     max_its,
     min_its, 
     accr,
@@ -174,13 +167,16 @@ for sol in [ "metal", "insulator" ]:
   lmdb = {}
   lmdb['model'] = model_id
   lmdb['method'] = "DMFT(IAIPT)"
+  lmdb['n'] = dt.get_n()
   invalid = False
   for p in hamiltonian_params:
     try:
-      lmdb[p] = dt.p
+      print "dt.",p,"=",vars(dt)[p] 
+      lmdb[p] = vars(dt)[p]
     except:
+      print "dt.",p,"taking from parameters"
       try:
-        lmdb[p] = evaluate_term_coefficient(p, params)
+        lmdb[p] = float(evaluate_term_coefficient(p, params))
       except:
         print "impossible to determine all model parameters"
         invalid=True
@@ -193,9 +189,11 @@ for sol in [ "metal", "insulator" ]:
   else:
     H0k['data'] = numpy.zeros(( nfields, nfields, nk, nk ), dtype=numpy.complex_)
     H0k['mesh'] = [field_ids,field_ids, ks, ks]
-  for a in range(nfields):
-    for b in range(nfields):
-      H0k['data'][a,b,:,:] = dt.H0k[:,:,a,b]
+  if nfields>1: 
+    for a in range(nfields):
+      for b in range(nfields):
+        H0k['data'][a,b,:,:] = dt.H0k[:,:,a,b]
+  else: H0k['data'][:,:] = dt.H0k[:,:,0,0]
   lmdb["H0_o_o_k" if nfields>1 else "H0_k"] = H0k
 
   Gk = {}
@@ -205,10 +203,14 @@ for sol in [ "metal", "insulator" ]:
   else:
     Gk['data'] = numpy.zeros(( nfields, nfields, nk, nk, 2*dt.niw ), dtype=numpy.complex_)
     Gk['mesh'] = [field_ids,field_ids, ks, ks, dt.iws.imag]
-  for a in range(nfields):
-    for b in range(nfields):
-      for iwi,iw in enumerate(dt.iws):
-        Gk['data'][a,b,:,:,iwi] = dt.G_ab_k_iw[iwi,:,:,a,b]
+  if nfields>1:
+    for a in range(nfields):
+      for b in range(nfields):
+        for iwi,iw in enumerate(dt.iws):
+          Gk['data'][a,b,:,:,iwi] = dt.G_ab_k_iw[iwi,:,:,a,b]
+  else: 
+    for iwi,iw in enumerate(dt.iws):
+      Gk['data'][:,:,iwi] = dt.G_ab_k_iw[iwi,:,:,0,0]
   lmdb["G_o_o_k_iw" if nfields>1 else "G_k_iw"] = Gk
 
   Sigmak = {}
@@ -218,8 +220,10 @@ for sol in [ "metal", "insulator" ]:
   else:
     Sigmak['data'] = numpy.zeros(( nfields, nfields, nk, nk, 2*dt.niw ), dtype=numpy.complex_)
     Sigmak['mesh'] = [field_ids,field_ids, ks, ks, dt.iws.imag]
-  for a in range(nfields):
-        Sigmak['data'][a,a,:,:,:] = dt.Sigma_imp_iw[field_ids[a]][:,0,0]
+  if nfields>1:
+    for a in range(nfields):
+      Sigmak['data'][a,a,:,:,:] = dt.Sigma_imp_iw[field_ids[a]].data[:,0,0]
+  else: Sigmak['data'][:,:,:] = dt.Sigma_imp_iw[field_ids[0]].data[:,0,0]
   lmdb["Sigma_o_o_k_iw" if nfields>1 else "Sigma_k_iw"] = Sigmak
 
 
