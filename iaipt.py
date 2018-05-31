@@ -142,14 +142,14 @@ for term in terms:
   for t in term[1][1:]:
     assert t[0]==co, 'interaction must be local!!'
   field_id = term[1][0][1]  
-  coef = float(evaluate_term_coefficient(term[0], params))
+  coef = float(evaluate_term_coefficient(term[0], evaluated_params))
   if str(field_id) in Us.keys(): Us[str(field_id)]+=coef
   else: Us[str(field_id)]=coef
 
 assert 'n' in params.keys(), "total n must be specified for this calculation"
 assert 'T' in params.keys(), "T must be specified for this calculation"
-n = float(evaluate_term_coefficient(params['n'], params))
-T = float(evaluate_term_coefficient(params['T'], params))
+n = float(evaluate_term_coefficient(params['n'], evaluated_params))
+T = float(evaluate_term_coefficient(params['T'], evaluated_params))
 
 for sol in [ "metal", "insulator" ]:
   globals()["dt_"+sol] , globals()["convergers_"+sol]  = iaipt_launcher( 
@@ -188,7 +188,7 @@ for sol in [ "metal", "insulator" ]:
     except:
       print "dt.",p,"taking from parameters"
       try:
-        lmdb[p] = float(evaluate_term_coefficient(p, params))
+        lmdb[p] = float(evaluate_term_coefficient(p, evaluated_params))
       except:
         print "impossible to determine all model parameters"
         invalid=True
