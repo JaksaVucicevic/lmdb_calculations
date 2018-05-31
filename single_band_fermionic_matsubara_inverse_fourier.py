@@ -85,8 +85,17 @@ except:
   print "ERROR: HDF5 archive does not contain the specified quantity",Q_sa_iw_name
   quit()
   
-beta = 4.0/T #!!!!!!!!
-nk,nk,niws = numpy.shape(Q_sa_iw)
+beta = 1.0/T
+try:
+  nk,nk,niws = numpy.shape(Q_sa_iw['data'])
+  Q_sa_iw = Q_sa_iw['data']
+except:
+  try: 
+    nk,nk,niws = numpy.shape(Q_sa_iw)
+  except:
+    print "ERROR: Quantity in unrecognized format: ",Q_sa_iw_name
+    quit()
+    
 assert niws % 2 ==0, "ERROR: must be fermionic Green's function with both negative and postivie freqs"
 n_iw = niws/2
 ntau = n_iw*3+1
