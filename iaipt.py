@@ -49,6 +49,8 @@ except:
   print 'nk cannot be converted to integer'
 
 #################################################################3
+
+   
 def evaluate_term_coefficient(coeff, params):    
   parser = Parser()
   expr = parser.parse(str(coeff))
@@ -65,9 +67,19 @@ def evaluate_term_coefficient(coeff, params):
   except:      
     print "Cannot evaluate term coefficient!!", coeff, "\n params:",params_cpy
     raise
-    quit()       
   assert not ((len(vrs)>2) and has_j), "Terms with complex coefficients can only have one variable, sorry. If additional constants are present, the code will give incorrect results!"
   return str(val)+("j" if has_j else "")
+
+def get_evaluated_params(params):
+  evaluated_params = {}
+  for k,v in params.iteritems():  
+    try:
+      evaluated_params[k] = evaluate_term_coefficient(v, params)
+    except:
+      evaluated_params[k] = v
+  return evaluated_params
+
+evaluated_params = get_evaluated_params(params)
 
 terms = [ term for term in hamiltonian_terms if len(term[1])==2 ]
 
@@ -103,7 +115,7 @@ ss = ['up','dn']
 
 def fill_H0k(mu, terms):
   H0k = numpy.zeros(( nk, nk, nfields, nfields ), dtype=numpy.complex_)
-  params_copy = params.copy()
+  params_copy = evaluated_params.copy()
   params_copy['mu'] = mu
   for coeff, [[co1,f1,s,_],[co2,f2,s,_]] in terms:
     if s=='dn': continue
