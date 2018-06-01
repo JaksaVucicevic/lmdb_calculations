@@ -105,19 +105,19 @@ dims_per_arg = {
  'iw': 1,
  'w': 1
 }
-dims = sum[dims_per_arg[arg] for arg in [spin_argument, orbital_argument, spatial_argument, temporal_argument]]
-assert len(sha) == dims, "ERROR: incorrect number of dimensions in data for the given choice of arguments'
+dims = sum([dims_per_arg[arg] for arg in [spin_argument, orbital_argument, spatial_argument, temporal_argument]])
+assert len(sha) == dims, "ERROR: incorrect number of dimensions in data for the given choice of arguments. len(sha)="+str(len(sha))+" dims="+str(dims)
 
-first_spatial_index = sum[dims_per_arg[arg] for arg in [spin_argument, orbital_argument]]
+first_spatial_index = sum([dims_per_arg[arg] for arg in [spin_argument, orbital_argument]])
 spatial_indices = [first_spatial_index,first_spatial_index+1]
 assert sha[first_spatial_index] == sha[first_spatial_index+1], "ERROR: it is assumed that the spatial grid is square, NxN points"
     
 Qfft = Q.copy()
 if not no_mesh:
-  if spatial_argument = 'k':
+  if spatial_argument == 'k':
     Qfft['mesh'][first_spatial_index] = range(sha[first_spatial_index])
     Qfft['mesh'][first_spatial_index+1] = range(sha[first_spatial_index])
-  elif spatial_argument = 'r':
+  elif spatial_argument == 'r':
     Qfft['mesh'][first_spatial_index] = list(numpy.linscace(0,2.0*numpy.pi,len(sha[first_spatial_index]),endpoint=False))
     Qfft['mesh'][first_spatial_index+1] = list(numpy.linscace(0,2.0*numpy.pi,len(sha[first_spatial_index]),endpoint=False))
   else:
@@ -127,9 +127,9 @@ if not no_mesh:
 index_ranges = []
 for i in range(dims):
   if i in spatial_indices: continue
-  index_ranges.append(range(len(sha[i])))
+  index_ranges.append(range(sha[i]))
 for inds in product(*index_ranges):
-  indices = tuple(list(inds)[:first_spatial_index] + [slice(),slice()] + list(inds)[first_spatial_index:])
+  indices = tuple(list(inds)[:first_spatial_index] + [slice(sha[first_spatial_index]),slice(sha[first_spatial_index])] + list(inds)[first_spatial_index:])
   if spatial_argument == 'k': XX=numpy.fft.ifft2
   if spatial_argument == 'r': XX=numpy.fft.fft2
   if no_mesh: 
