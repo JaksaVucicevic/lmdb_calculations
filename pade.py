@@ -64,7 +64,7 @@ try:
   orbital_argument = input_dict['orbital_argument']    
   spatial_argument = input_dict['spatial_argument']
   w_min = float(input_dict['w_min'])
-  w_max = float(input_dict['w_min'])
+  w_max = float(input_dict['w_max'])
   n_points = int(input_dict['n_points'])
 except:
   print "ERROR: input does not specify all arguments, orbital, spatial and temporal"
@@ -113,7 +113,7 @@ assert len(sha) == dims, "ERROR: incorrect number of dimensions in data for the 
    
 Qpade = deepcopy(Q)
 if not no_mesh:  
-  Qpade['mesh'][-1] = numpy.linspace(w_min,w_max,n_points,endpoint=True)
+  Qpade['mesh'][-1] = list(numpy.linspace(w_min,w_max,n_points,endpoint=True))
   Qpade['data'] = numpy.zeros(tuple(list(sha[:-1]) + [n_points]),dtype=numpy.complex_)
 else:
   Qpade = numpy.zeros(tuple(list(sha) + [n_points]),dtype=numpy.complex_)
@@ -124,16 +124,16 @@ for inds in product(*index_ranges):
   indices = tuple(list(inds) + [slice(sha[-1])])
   qiw = GfImFreq(indices = [0], beta = 1.0/T , n_points = sha[-1]/2, name = "whatever")
   if no_mesh: 
-    qiw[:,0,0]=Q[indices]
+    qiw.data[:,0,0]=Q[indices]
   else:
-    qiw[:,0,0]=Q['data'][indices]
+    qiw.data[:,0,0]=Q['data'][indices]
   qw = GfReFreq(indices = [0], window = (w_min, w_max), n_points = n_points, name = "whatever")
   qw.set_from_pade(qiw, n_points = sha[-1]/2, freq_offset = 0.0)
   indices = tuple(list(inds) + [slice(n_points)])
   if no_mesh: 
-    Qpade[indices] = qw[:,0,0]
+    Qpade[indices] = qw.data[:,0,0]
   else:
-    Qpade['data'][indices] = qw[:,0,0]
+    Qpade['data'][indices] = qw.data[:,0,0]
 
 lmdb = A['lmdb']
 lmdb[Qpade_name] = Qpade
