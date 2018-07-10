@@ -9,7 +9,7 @@ try:
   import json
   import sys
   print "about to import smart_scripts...",
-  sys.path.insert(0,'/home/jaksa/TRIQS/source/smart_scripts')
+  #  sys.path.insert(0,'/home/jaksa/TRIQS/source/smart_scripts')
   from smart_scripts import *
   print "done"
 except:
