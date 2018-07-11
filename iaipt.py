@@ -8,9 +8,10 @@ try:
   numpy.warnings.filterwarnings('ignore')
   import json
   import sys
+  from functools import partial
   print "about to import smart_scripts...",
   #  sys.path.insert(0,'/home/jaksa/TRIQS/source/smart_scripts')
-  from smart_scripts import *
+  from smart_scripts.iaipt import iaipt_launcher
   print "done"
 except:
   print "ERROR: not all requirements met."
